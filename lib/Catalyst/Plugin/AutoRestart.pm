@@ -6,7 +6,7 @@ use Class::C3;
 use Text::SimpleTable;
 use Proc::ProcessTable;
 
-our $VERSION = '0.90';
+our $VERSION = '0.91';
 
 =head1 NAME
 
@@ -77,7 +77,7 @@ Create sane defaults
 
 sub setup {
 	my $c = shift @_;
-	my $config = $c->config->{'autorestart'} || {};
+	my $config = $c->config->{'Plugin::AutoRestart'} || {};
 
 	$config->{_process_table} = Proc::ProcessTable->new;
     
@@ -99,13 +99,14 @@ Count each handled request and when a threshold is met, restart.
 sub handle_request {
 	my ($c, @args) = (shift,  @_); 
 	my $ret = $c->next::method(@args);
+	my $config = $c->config->{'Plugin::AutoRestart'} || {};
 	    
 	return $ret
-	 unless $c->config->{autorestart}{active};
+	 unless $config->{active};
 	 
-	my $check_each = $c->config->{autorestart}{check_each};
+	my $check_each = $config->{check_each};
      
-	if($Catalyst::COUNT > $c->config->{autorestart}{min_handled_requests}){
+	if($Catalyst::COUNT > $config->{min_handled_requests}){
 		if ($Catalyst::COUNT/$check_each == int($Catalyst::COUNT/$check_each)) { 
 			$c->log->warn('Checking Memory Size.');
 
@@ -113,9 +114,9 @@ sub handle_request {
 			
 			$c->log->warn("Found size is $size");
 			
-			if(defined $size && $size > $c->config->{autorestart}{max_bits} ) {
+			if(defined $size && $size > $config->{max_bits} ) {
 				# this actually wont output to log since it exits
-				$c->log->warn("$size is bigger than: ".$c->config->{autorestart}{max_bits}. "exiting now...");
+				$c->log->warn("$size is bigger than: ".$config->{max_bits}. "exiting now...");
 				exit(0);
 			}
 		}
@@ -133,8 +134,9 @@ Send to the log the full running process table
 
 sub _debug_process_table {
 	my ($c) = @_;
+	my $config = $c->config->{'Plugin::AutoRestart'} || {};
 	
-	foreach my $p ( @{$c->config->{autorestart}{_process_table}->table} ) {
+	foreach my $p ( @{$config->{_process_table}->table} ) {
 		next
 		 unless $p->pid == $$;
 		 

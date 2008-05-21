@@ -19,4 +19,4 @@ requires:
   Proc::ProcessTable: 0.41
   Text::SimpleTable: 0.03
 tests: t/*.t
-version: 0.90
+version: 0.91
