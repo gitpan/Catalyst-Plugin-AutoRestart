@@ -2,15 +2,21 @@ package Catalyst::Plugin::AutoRestart;
 
 use strict;
 use warnings;
+
+# The same accessor that Catalyst core uses
+use base qw/Class::Data::Accessor/;
 use Class::C3;
 use Text::SimpleTable;
 use Proc::ProcessTable;
 
-our $VERSION = '0.91';
+__PACKAGE__->mk_classaccessor(qw/_autorestart_state/);
+
+our $VERSION = '0.92';
 
 =head1 NAME
 
-Catalyst::Plugin::AutoRestart - Catalyst plugin to restart every 'n' requests
+Catalyst::Plugin::AutoRestart - Catalyst plugin to restart server 
+processes when specified memory threshold is reached 
 
 =head1 SYNOPSIS
 
@@ -32,9 +38,10 @@ use Catalyst qw/AutoRestart/;
 
 =head1 DESCRIPTION
 
-Catalyst plugin to force the application to restart after a configurable number
-of requests handled.  This is intended as a bandaid to deal with problems like
-memory leaks; it's here to buy you time to find and solve the underlying issues.
+Catalyst plugin to force the application to restart server processes when they reach 
+a configurable memory threshold. Memory checks are performed every 'N' requests.  This is 
+intended as a band-aid to deal with problems like memory leaks; it's here to buy you 
+time to find and solve the underlying issues.
 
 =head1 CONFIGURATION
 
@@ -60,6 +67,12 @@ This is the size virtual memory can grow to before triggering a restart
 
 The default is 524288000 bits (500 mb)
 
+=head2 size_field
+
+Which size field to measure. Defaults to C<size>. Other values are anything
+that L<Proc::ProcessTable::Process> has an accessor for, which depends on your
+OS. Most people will want C<size> (virtual memory size) or C<rss>
+(resident set size)
 
 =head1 SEE ALSO
 
@@ -79,15 +92,15 @@ sub setup {
 	my $c = shift @_;
 	my $config = $c->config->{'Plugin::AutoRestart'} || {};
 
-	$config->{_process_table} = Proc::ProcessTable->new;
+	$c->_autorestart_state( {
+		_process_table => Proc::ProcessTable->new,
+		max_bits => 524288000,
+		min_handled_requests => 500,
+		size_field => 'size',
+		%$config
+	} );
     
-	$config->{max_bits} = 524288000
-	 unless $config->{max_bits}; ## 500 megabit is the default
-
-	$config->{min_handled_requests} = 500 
-	 unless $config->{min_handled_requests}; 
-
-    return $c->next::method(@_)
+	return $c->next::method(@_)
 }
 
 =head2 handle_request
@@ -99,44 +112,45 @@ Count each handled request and when a threshold is met, restart.
 sub handle_request {
 	my ($c, @args) = (shift,  @_); 
 	my $ret = $c->next::method(@args);
-	my $config = $c->config->{'Plugin::AutoRestart'} || {};
+	my $state = $c->_autorestart_state;
 	    
 	return $ret
-	 unless $config->{active};
+	 unless $state->{active};
 	 
-	my $check_each = $config->{check_each};
+	my $check_each = $state->{check_each};
      
-	if($Catalyst::COUNT > $config->{min_handled_requests}){
-		if ($Catalyst::COUNT/$check_each == int($Catalyst::COUNT/$check_each)) { 
-			$c->log->warn('Checking Memory Size.');
+	if( ($Catalyst::COUNT >= $state->{min_handled_requests}) && ($Catalyst::COUNT % $check_each) == 0 ) {
+		$c->log->warn('Checking Memory Size.');
 
-			my $size = $c->_debug_process_table($c);
-			
-			$c->log->warn("Found size is $size");
-			
-			if(defined $size && $size > $config->{max_bits} ) {
-				# this actually wont output to log since it exits
-				$c->log->warn("$size is bigger than: ".$config->{max_bits}. "exiting now...");
-				exit(0);
-			}
+		my $size = $c->_debug_process_table($c);
+		
+		$c->log->warn("Found size is $size");
+		
+		if(defined $size && $size > $state->{max_bits} ) {
+			# this actually wont output to log since it exits
+			$c->log->warn("$size is bigger than: ".$state->{max_bits}. " exiting now...");
+			$c->log->_flush if $c->log->can("_flush");
+			exit(0);
 		}
+		$c->log->_flush if $c->log->can("_flush");
 	}
  
-    return $ret;
+	return $ret;
 }
 
 
 =head2 _debug_process_table
 
-Send to the log the full running process table
+Send to the log the full running process table and return the size of the 
+process
 
 =cut
 
 sub _debug_process_table {
 	my ($c) = @_;
-	my $config = $c->config->{'Plugin::AutoRestart'} || {};
+	my $state = $c->_autorestart_state;
 	
-	foreach my $p ( @{$config->{_process_table}->table} ) {
+	foreach my $p ( @{$state->{_process_table}->table} ) {
 		next
 		 unless $p->pid == $$;
 		 
@@ -144,9 +158,10 @@ sub _debug_process_table {
 		$table->row($p->pid, $p->size, $p->rss, $p->cmndline);
 		$c->log->warn("Process Info:\n" . $table->draw);
 		
-		return $p->size;
+		my $fld = $state->{size_field};
+		return $p->$fld;
 	}
-	return;
+	return 0;
 }
 
 

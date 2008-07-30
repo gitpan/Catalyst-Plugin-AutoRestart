@@ -1,6 +1,6 @@
 NAME
-    Catalyst::Plugin::AutoRestart - Catalyst plugin to restart every 'n'
-    requests
+    Catalyst::Plugin::AutoRestart - Catalyst plugin to restart server
+    processes when specified memory threshold is reached
 
 SYNOPSIS
     use Catalyst qw/AutoRestart/;
@@ -20,10 +20,11 @@ SYNOPSIS
      </Plugin::AutoRestart>
 
 DESCRIPTION
-    Catalyst plugin to force the application to restart after a configurable
-    number of requests handled. This is intended as a bandaid to deal with
-    problems like memory leaks; it's here to buy you time to find and solve
-    the underlying issues.
+    Catalyst plugin to force the application to restart server processes
+    when they reach a configurable memory threshold. Memory checks are
+    performed every 'N' requests. This is intended as a band-aid to deal
+    with problems like memory leaks; it's here to buy you time to find and
+    solve the underlying issues.
 
 CONFIGURATION
   active
@@ -44,6 +45,12 @@ CONFIGURATION
 
     The default is 524288000 bits (500 mb)
 
+  size_field
+    Which size field to measure. Defaults to "size". Other values are
+    anything that Proc::ProcessTable::Process has an accessor for, which
+    depends on your OS. Most people will want "size" (virtual memory size)
+    or "rss" (resident set size)
+
 SEE ALSO
     For trying to solve memory leaks see Devel::Leak::Object
 
@@ -58,7 +65,8 @@ EXTENDED METHODS
     Count each handled request and when a threshold is met, restart.
 
   _debug_process_table
-    Send to the log the full running process table
+    Send to the log the full running process table and return the size of
+    the process
 
 AUTHORS
      John Napiorkowski <john.napiorkowski@takkle.com>

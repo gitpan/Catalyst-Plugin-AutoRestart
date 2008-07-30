@@ -1,5 +1,5 @@
 ---
-abstract: 'Catalyst plugin to restart every ''n' requests'
+abstract: 'Catalyst plugin to restart server '
 author:
   - 'John Napiorkowski <john.napiorkowski@takkle.com>'
 distribution_type: module
@@ -16,7 +16,8 @@ no_index:
 requires:
   Catalyst: 5.7007
   Class::C3: 0.19
+  Class::Data::Accessor: 0
   Proc::ProcessTable: 0.41
   Text::SimpleTable: 0.03
 tests: t/*.t
-version: 0.91
+version: 0.92
