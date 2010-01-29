@@ -5,13 +5,13 @@ use warnings;
 
 # The same accessor that Catalyst core uses
 use base qw/Class::Data::Accessor/;
-use Class::C3;
+use MRO::Compat;
 use Text::SimpleTable;
 use Proc::ProcessTable;
 
 __PACKAGE__->mk_classaccessor(qw/_autorestart_state/);
 
-our $VERSION = '0.92';
+our $VERSION = '0.93';
 
 =head1 NAME
 
